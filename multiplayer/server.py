@@ -2,6 +2,7 @@ import random
 import socket
 import pickle
 from _thread import *
+import pygame
 
 windowWidth = 500
 windowHeight = 400
@@ -32,36 +33,86 @@ class CoordMessage:
         self.p2y = None
         self.m1x = None
         self.m1y = None
+        self.m2x = None
+        self.m2y = None
+
+
+class Game:
+    def __init__(self):
+        self.coordMessage = CoordMessage()
+        self.coordMessage.p1x = 50
+        self.coordMessage.p1y = windowHeight * random.random()  # 350
+        self.coordMessage.p2x = windowWidth - 50 - 60  # Ship Width
+        self.coordMessage.p2y = windowHeight * random.random()  # 350
+        self.coordMessage.m1x = windowWidth * random.random()
+        self.coordMessage.m1y = -25
+        self.coordMessage.m2x = windowWidth * random.random()
+        self.coordMessage.m2y = -25
+
+        self.speed1 = 5 * random.random() + 5
+        self.speed2 = 5 * random.random() + 5
+
+        self.playerWidth = 60
+        self.playerWeight = 20
+        self.playerImage = pygame.Surface((self.playerWidth, self.playerWeight))
+        self.playerMask = pygame.mask.from_surface(self.playerImage)
+
+        self.meteorWidth = 20
+        self.meteorHeight = 20
+        self.meteorImage = pygame.Surface((self.meteorWidth, self.meteorHeight))
+        self.meteorMask = pygame.mask.from_surface(self.meteorImage)
 
     def updatePlayerOne(self, move_msg):
-        self.p1x += move_msg.px
-        self.p1y += move_msg.py
-        if self.p1x < 0:
-            self.p1x = 0
-        elif self.p1x > p1horzBorder:
-            self.p1x = p1horzBorder
-        if self.p1y < 0:
-            self.p1y = 0
-        elif self.p1y > vertBorder:
-            self.p1y = vertBorder
+        self.coordMessage.p1x += move_msg.px
+        self.coordMessage.p1y += move_msg.py
+        if self.coordMessage.p1x < 0:
+            self.coordMessage.p1x = 0
+        elif self.coordMessage.p1x > p1horzBorder:
+            self.coordMessage.p1x = p1horzBorder
+        if self.coordMessage.p1y < 0:
+            self.coordMessage.p1y = 0
+        elif self.coordMessage.p1y > vertBorder:
+            self.coordMessage.p1y = vertBorder
 
     def updatePlayerTwo(self, move_msg):
-        self.p2x += move_msg.px
-        self.p2y += move_msg.py
-        if self.p2x < p2horzBorder:
-            self.p2x = p2horzBorder
-        elif self.p2x > p2horzBorder2:
-            self.p2x = p2horzBorder2
-        if self.p2y < 0:
-            self.p2y = 0
-        elif self.p2y > vertBorder:
-            self.p2y = vertBorder
+        self.coordMessage.p2x += move_msg.px
+        self.coordMessage.p2y += move_msg.py
+        if self.coordMessage.p2x < p2horzBorder:
+            self.coordMessage.p2x = p2horzBorder
+        elif self.coordMessage.p2x > p2horzBorder2:
+            self.coordMessage.p2x = p2horzBorder2
+        if self.coordMessage.p2y < 0:
+            self.coordMessage.p2y = 0
+        elif self.coordMessage.p2y > vertBorder:
+            self.coordMessage.p2y = vertBorder
 
     def updateMeteor(self):
-        self.m1y += 5
-        if self.m1y > windowHeight:
-            self.m1x = windowWidth * random.random()
-            self.m1y = -25
+        self.coordMessage.m1y += self.speed1
+        if self.coordMessage.m1y > windowHeight:
+            self.coordMessage.m1x = windowWidth * random.random()
+            self.coordMessage.m1y = -25
+            self.speed1 = 5 * random.random() + 5
+        self.coordMessage.m2y += self.speed2
+        if self.coordMessage.m2y > windowHeight:
+            self.coordMessage.m2x = windowWidth * random.random()
+            self.coordMessage.m2y = -25
+            self.speed2 = 5 * random.random() + 5
+
+    def checkCollisionOne(self):
+        if self.playerMask.overlap(self.meteorMask, (int(round(self.coordMessage.m1x - self.coordMessage.p1x)), int(round(self.coordMessage.m1y - self.coordMessage.p1y)))) or self.playerMask.overlap(self.meteorMask, (int(round(self.coordMessage.m2x - self.coordMessage.p1x)), int(round(self.coordMessage.m2y - self.coordMessage.p1y)))):
+            self.coordMessage.p1x = 50
+            self.coordMessage.p1y = windowHeight * random.random()  # 350
+            return True
+        else:
+            return False
+
+    def checkCollisionTwo(self):
+        if self.playerMask.overlap(self.meteorMask, (int(round(self.coordMessage.m1x - self.coordMessage.p2x)), int(round(self.coordMessage.m1y - self.coordMessage.p2y)))) or self.playerMask.overlap(self.meteorMask, (int(round(self.coordMessage.m2x - self.coordMessage.p2x)), int(round(self.coordMessage.m2y - self.coordMessage.p2y)))):
+            self.coordMessage.p2x = windowWidth - 50 - 60  # Ship Width
+            self.coordMessage.p2y = windowHeight * random.random()  # 350
+            return True
+        else:
+            return False
 
 
 class MoveMessage:
@@ -70,13 +121,7 @@ class MoveMessage:
         self.py = y
 
 
-coord_message = CoordMessage()
-coord_message.p1x = 50
-coord_message.p1y = 350
-coord_message.p2x = windowWidth - 50 - 60  # Ship Width
-coord_message.p2y = 350
-coord_message.m1x = windowWidth * random.random()
-coord_message.m1y = -25
+game = Game()
 
 SERVER_IP = '127.0.0.1'
 PORT = 5555
@@ -105,19 +150,30 @@ def threaded_client(connection, playernum):
 
         move_message = pickle.loads(recv_data)
         if playernum == 1:
-            coord_message.updatePlayerOne(move_message)
+            game.updatePlayerOne(move_message)
         elif playernum == 2:
-            coord_message.updatePlayerTwo(move_message)
+            game.updatePlayerTwo(move_message)
 
-        send_data = pickle.dumps(coord_message)
+        send_data = pickle.dumps(game.coordMessage)
         connection.send(send_data)
     connection.close()
+
+
+def threaded_game_mechanics():
+    while True:
+        pygame.time.delay(50)
+        game.updateMeteor()
+        if game.checkCollisionOne():
+            print("Hit Player 1")
+        if game.checkCollisionTwo():
+            print("Hit Player 2")
 
 
 p1conn = None
 p2conn = None
 
 try:
+    start_new_thread(threaded_game_mechanics, ())
     while True:
         if not p1conn:
             p1conn, addr = sock.accept()
@@ -131,7 +187,6 @@ try:
             start_new_thread(threaded_client, (p2conn, 2,))
             ThreadCount += 1
             print('Thread Number: ' + str(ThreadCount))
-
 except Exception as e:
     print(e)
 finally:
