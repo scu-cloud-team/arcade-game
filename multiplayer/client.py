@@ -21,6 +21,8 @@ class CoordMessage:
         self.p2y = None
         self.m1x = None
         self.m1y = None
+        self.m2x = None
+        self.m2y = None
 
 
 class MoveMessage:
@@ -45,31 +47,21 @@ class Player:
         self.x += movexy[0]
         self.y += movexy[1]
 
-    def mask(self):
-        return pygame.mask.from_surface(self.image)
-
     def draw(self):
         window.blit(self.image, (self.x, self.y))
 
 
 class Meteor:
-    def __init__(self, speed):
+    def __init__(self):
         self.x = windowWidth * random.random()
         self.y = 0
         self.width = 20
         self.height = 20
-        self.speed = speed
         self.image = pygame.Surface((self.width, self.height))
         self.image.fill((255, 200, 0))
 
     def draw(self):
         window.blit(self.image, (self.x, self.y))
-
-    def mask(self):
-        return pygame.mask.from_surface(self.image)
-
-    def move(self):
-        self.y += self.speed
 
 
 class MidBorder:
@@ -89,7 +81,8 @@ class Game:
     def __init__(self):
         self.player = Player()
         self.player2 = Player()
-        self.meteor = Meteor(5)
+        self.meteor = Meteor()
+        self.meteor2 = Meteor()
         self.midBorder = MidBorder()
 
     def draw(self):
@@ -97,6 +90,7 @@ class Game:
         self.player.draw()
         self.player2.draw()
         self.meteor.draw()
+        self.meteor2.draw()
         self.midBorder.draw()
         pygame.display.update()
 
@@ -107,6 +101,8 @@ class Game:
         self.player2.y = coord_msg.p2y
         self.meteor.x = coord_msg.m1x
         self.meteor.y = coord_msg.m1y
+        self.meteor2.x = coord_msg.m2x
+        self.meteor2.y = coord_msg.m2y
         self.draw()
 
 
