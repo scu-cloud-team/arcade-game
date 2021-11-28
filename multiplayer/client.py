@@ -1,8 +1,14 @@
 import pygame
 import random
+import re
 import socket
 import pickle
 
+
+playerName = input("Enter your name: ")
+playerName = re.sub('[^0-9a-zA-Z]+', '', playerName)
+if len(playerName) > 20:
+    playerName = playerName[:20]
 
 windowWidth = 500
 windowHeight = 400
@@ -11,6 +17,7 @@ horzBorder = windowWidth // 2 - 5
 pygame.init()
 window = pygame.display.set_mode((windowWidth, windowHeight))
 pygame.display.set_caption("Online Game - Praveen Vandeyar")
+font = pygame.font.SysFont("comicsans", 20, True)
 
 
 class CoordMessage:
@@ -23,6 +30,8 @@ class CoordMessage:
         self.m1y = None
         self.m2x = None
         self.m2y = None
+        self.s1 = None
+        self.s2 = None
 
 
 class MoveMessage:
@@ -84,14 +93,27 @@ class Game:
         self.meteor = Meteor()
         self.meteor2 = Meteor()
         self.midBorder = MidBorder()
+        self.score1 = None
+        self.score2 = None
+        self.highscore = None
 
     def draw(self):
         window.fill((0, 0, 0))
+
+        self.midBorder.draw()
+
+        score_text1 = font.render('Score: ' + str(self.score1), True, (255, 255, 255))
+        score_text2 = font.render('Highest: ' + str(self.highscore), True, (200, 200, 200))
+        score_text3 = font.render('Score: ' + str(self.score2), True, (255, 255, 255))
+        window.blit(score_text1, (10, 10))
+        window.blit(score_text2, (170, 10))
+        window.blit(score_text3, (410, 10))
+
         self.player.draw()
         self.player2.draw()
         self.meteor.draw()
         self.meteor2.draw()
-        self.midBorder.draw()
+
         pygame.display.update()
 
     def update(self, coord_msg):
@@ -103,10 +125,14 @@ class Game:
         self.meteor.y = coord_msg.m1y
         self.meteor2.x = coord_msg.m2x
         self.meteor2.y = coord_msg.m2y
+        self.score1 = coord_msg.s1
+        self.score2 = coord_msg.s2
+        self.highscore = coord_msg.hs
         self.draw()
 
 
-SERVER_IP = '127.0.0.1'
+#SERVER_IP = '127.0.0.1'
+SERVER_IP = 'ec2-54-215-117-138.us-west-1.compute.amazonaws.com'
 PORT = 5555
 BUFFER_SIZE = 1024
 
@@ -115,6 +141,10 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 try:
     sock.connect((SERVER_IP, PORT))
+
+    send_data = pickle.dumps(playerName)
+    sock.send(send_data)
+
     run = True
     while run:
         pygame.time.delay(50)
