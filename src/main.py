@@ -1,13 +1,43 @@
 import pygame
 import random
-import time
+import re
+import socket
+import pickle
+
+
+playerName = input("Enter your name: ")
+playerName = re.sub('[^0-9a-zA-Z]+', '', playerName)
+if len(playerName) > 20:
+    playerName = playerName[:20]
 
 windowWidth = 500
 windowHeight = 400
+horzBorder = windowWidth // 2 - 5
 
 pygame.init()
 window = pygame.display.set_mode((windowWidth, windowHeight))
-pygame.display.set_caption("Learning PyGame - Praveen Vandeyar")
+pygame.display.set_caption("Online Game - Praveen Vandeyar")
+font = pygame.font.SysFont("comicsans", 20, True)
+
+
+class CoordMessage:
+    def __init__(self):
+        self.p1x = None
+        self.p1y = None
+        self.p2x = None
+        self.p2y = None
+        self.m1x = None
+        self.m1y = None
+        self.m2x = None
+        self.m2y = None
+        self.s1 = None
+        self.s2 = None
+
+
+class MoveMessage:
+    def __init__(self, x, y):
+        self.px = x
+        self.py = y
 
 
 class Player:
@@ -21,189 +51,128 @@ class Player:
         self.image.fill((100, 100, 255))
         self.right = True
         self.shot = False
-        self.fire = fireRate
 
-    def move(self, x, y):
-        self.x += x
-        self.y += y
-
-    def mask(self):
-        return pygame.mask.from_surface(self.image)
+    def move(self, movexy):
+        self.x += movexy[0]
+        self.y += movexy[1]
 
     def draw(self):
         window.blit(self.image, (self.x, self.y))
 
 
-class Obstacle:
-    def __init__(self, speed):
+class Meteor:
+    def __init__(self):
         self.x = windowWidth * random.random()
         self.y = 0
         self.width = 20
         self.height = 20
-        self.speed = speed
         self.image = pygame.Surface((self.width, self.height))
         self.image.fill((255, 200, 0))
 
     def draw(self):
         window.blit(self.image, (self.x, self.y))
 
-    def mask(self):
-        return pygame.mask.from_surface(self.image)
 
-    def move(self):
-        self.y += self.speed
-
-
-class Bullet:
-    def __init__(self, x, y, speed=5,):
-        self.x = x
-        self.y = y
+class MidBorder:
+    def __init__(self):
+        self.x = horzBorder
+        self.y = 0
         self.width = 10
-        self.height = 10
-        self.speed = speed
+        self.height = windowHeight
         self.image = pygame.Surface((self.width, self.height))
-        self.image.fill((150, 255, 50))
+        self.image.fill((255, 255, 255))
 
     def draw(self):
         window.blit(self.image, (self.x, self.y))
 
-    def mask(self):
-        return pygame.mask.from_surface(self.image)
 
-    def move(self):
-        self.x += self.speed
+class Game:
+    def __init__(self):
+        self.player = Player()
+        self.player2 = Player()
+        self.meteor = Meteor()
+        self.meteor2 = Meteor()
+        self.midBorder = MidBorder()
+        self.score1 = None
+        self.score2 = None
+        self.highscore = None
+
+    def draw(self):
+        window.fill((0, 0, 0))
+
+        self.midBorder.draw()
+
+        score_text1 = font.render('Score: ' + str(self.score1), True, (255, 255, 255))
+        score_text2 = font.render('Highest: ' + str(self.highscore), True, (200, 200, 200))
+        score_text3 = font.render('Score: ' + str(self.score2), True, (255, 255, 255))
+        window.blit(score_text1, (10, 10))
+        window.blit(score_text2, (170, 10))
+        window.blit(score_text3, (410, 10))
+
+        self.player.draw()
+        self.player2.draw()
+        self.meteor.draw()
+        self.meteor2.draw()
+
+        pygame.display.update()
+
+    def update(self, coord_msg):
+        self.player.x = coord_msg.p1x
+        self.player.y = coord_msg.p1y
+        self.player2.x = coord_msg.p2x
+        self.player2.y = coord_msg.p2y
+        self.meteor.x = coord_msg.m1x
+        self.meteor.y = coord_msg.m1y
+        self.meteor2.x = coord_msg.m2x
+        self.meteor2.y = coord_msg.m2y
+        self.score1 = coord_msg.s1
+        self.score2 = coord_msg.s2
+        self.highscore = coord_msg.hs
+        self.draw()
 
 
-score = 0
-font = pygame.font.SysFont("comicsans", int(round(windowHeight / 15)), True)
-font1 = pygame.font.SysFont("comicsans", int(round(windowHeight / 10)), True)
+#SERVER_IP = '127.0.0.1'
+SERVER_IP = 'ec2-54-215-117-138.us-west-1.compute.amazonaws.com'
+PORT = 5555
+BUFFER_SIZE = 1024
 
+game = Game()
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-def draw_window():
-    window.fill((0, 0, 0))
-    player.draw()
-    obstacle1.draw()
-    obstacle2.draw()
-    for bullet in bullets:
-        bullet.draw()
-    score_text = font.render('Score: ' + str(score), True, (255, 255, 255))
-    window.blit(score_text, (10, 10))
-    pygame.display.update()
+try:
+    sock.connect((SERVER_IP, PORT))
 
+    send_data = pickle.dumps(playerName)
+    sock.send(send_data)
 
-def draw_end():
-    window.fill((0, 0, 0))
-    player.draw()
-    obstacle1.draw()
-    obstacle2.draw()
-    score_text = font1.render('Game Over', True, (255, 100, 100))
-    window.blit(score_text, (170, windowHeight//2-int(round(windowHeight / 10))))
-    score_text = font1.render('Score: ' + str(score), True, (255, 255, 255))
-    window.blit(score_text, (170, windowHeight//2))
-    pygame.display.update()
-
-
-bulletLimit = 5
-fireRate = 20
-player = Player()
-bullets = []
-increment = 0.8
-speed1 = 3
-speed2 = 1.5
-obstacle1 = Obstacle(3)
-obstacle2 = Obstacle(1.5)
-
-gameOver = False
-run = True
-while run:
-    pygame.time.delay(20)
-
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            run = False
-
-    if player.shot:
-        player.fire -= 1
-        if player.fire <= 0:
-            player.fire = fireRate
-            player.shot = False
-
-    keys = pygame.key.get_pressed()
-
-    if keys[pygame.K_LEFT] and player.x > player.speed:
-        player.move(-player.speed, 0)
-
-    if keys[pygame.K_RIGHT] and player.x < windowWidth - player.speed:
-        player.move(player.speed, 0)
-
-    if keys[pygame.K_UP] and player.y > player.speed:
-        player.move(0, -player.speed)
-
-    if keys[pygame.K_DOWN] and player.y < windowHeight - player.speed:
-        player.move(0, player.speed)
-
-    if keys[pygame.K_SPACE]:
-        if len(bullets) < bulletLimit and player.fire == fireRate:
-            bullets.append(Bullet(player.x+player.width-5, player.y+5))
-            player.shot = True
-
-    i = 0
-    while i < len(bullets):
-        bullets[i].move()
-
-        if bullets[i].mask().overlap(
-                obstacle1.mask(), (int(round(obstacle1.x - bullets[i].x)), int(round(obstacle1.y - bullets[i].y)))
-        ):
-            score += 1
-            speed1 -= speed1 // 4
-            speed2 -= speed2 // 4
-            obstacle1 = Obstacle(speed1)
-
-        if bullets[i].mask().overlap(
-                obstacle2.mask(), (int(round(obstacle2.x - bullets[i].x)), int(round(obstacle2.y - bullets[i].y)))
-        ):
-            score += 1
-            speed1 -= speed1 // 4
-            speed2 -= speed2 // 4
-            obstacle2 = Obstacle(speed2)
-
-        if bullets[i].x > windowWidth:
-            bullets.pop(i)
-        else:
-            i += 1
-
-    obstacle1.move()
-    if obstacle1.y > windowHeight:
-        score += 1
-        speed1 += increment ** 1.1
-        obstacle1 = Obstacle(speed1)
-
-    if player.mask().overlap(obstacle1.mask(), (int(round(obstacle1.x - player.x)), int(round(obstacle1.y - player.y)))):
-        gameOver = True
-        run = False
-
-    obstacle2.move()
-    if obstacle2.y > windowHeight:
-        score += 1
-        speed2 += increment ** 2
-        obstacle2 = Obstacle(speed2)
-
-    if player.mask().overlap(obstacle2.mask(), (int(round(obstacle2.x - player.x)), int(round(obstacle2.y - player.y)))):
-        run = False
-
-    draw_window()
-
-if gameOver:
     run = True
-    draw_end()
     while run:
+        pygame.time.delay(50)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
-                break
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE or event.key == pygame.K_ESCAPE:
-                    run = False
-                    break
 
-pygame.quit()
+        keys = pygame.key.get_pressed()
+        moveXY = [0, 0]
+        if keys:
+            if keys[pygame.K_LEFT]:
+                moveXY[0] -= 5
+            if keys[pygame.K_RIGHT]:
+                moveXY[0] += 5
+            if keys[pygame.K_UP]:
+                moveXY[1] -= 5
+            if keys[pygame.K_DOWN]:
+                moveXY[1] += 5
+        move_message = MoveMessage(moveXY[0], moveXY[1])
+        send_data = pickle.dumps(move_message)
+        sock.send(send_data)
+
+        recv_data = sock.recv(BUFFER_SIZE)
+        coord_message = pickle.loads(recv_data)
+        game.update(coord_message)
+    sock.close()
+
+except Exception as e:
+    print(e)
+    sock.close()
