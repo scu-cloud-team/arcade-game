@@ -3,6 +3,7 @@ import socket
 import pickle
 from _thread import *
 import pygame
+import threading
 
 windowWidth = 500
 windowHeight = 400
@@ -123,7 +124,8 @@ class MoveMessage:
 
 game = Game()
 
-SERVER_IP = '127.0.0.1'
+SERVER_IP = 'ec2-54-215-117-138.us-west-1.compute.amazonaws.com'
+SERVER_IP = '0.0.0.0'
 PORT = 5555
 BUFFER_SIZE = 1024
 
@@ -138,25 +140,37 @@ ThreadCount = 0
 print("Started Server")
 
 
-def threaded_client(connection, playernum):
-    while True:
-        recv_data1 = None
-        try:
-            recv_data = connection.recv(BUFFER_SIZE)
-        except:
-            break
-        if not recv_data:
-            break
-
-        move_message = pickle.loads(recv_data)
-        if playernum == 1:
+def threaded_client(playernum):
+    if playernum == 1:
+        while True:
+            try:
+                recv_data = playerConnections[0].recv(BUFFER_SIZE)
+            except Exception as cli_e:
+                break
+            if not recv_data:
+                break
+            move_message = pickle.loads(recv_data)
             game.updatePlayerOne(move_message)
-        elif playernum == 2:
+            send_data = pickle.dumps(game.coordMessage)
+            playerConnections[0].send(send_data)
+        playerConnections[0].close()
+        print(playerConnections[0], "exited")
+        playerConnections[0] = None
+    elif playernum == 2:
+        while True:
+            try:
+                recv_data = playerConnections[1].recv(BUFFER_SIZE)
+            except:
+                break
+            if not recv_data:
+                break
+            move_message = pickle.loads(recv_data)
             game.updatePlayerTwo(move_message)
-
-        send_data = pickle.dumps(game.coordMessage)
-        connection.send(send_data)
-    connection.close()
+            send_data = pickle.dumps(game.coordMessage)
+            playerConnections[1].send(send_data)
+        playerConnections[1].close()
+        print(playerConnections[1], "exited")
+        playerConnections[1] = None
 
 
 def threaded_game_mechanics():
@@ -169,22 +183,22 @@ def threaded_game_mechanics():
             print("Hit Player 2")
 
 
-p1conn = None
-p2conn = None
+playerConnections = [None, None]
+gameStarted = [False]
 
 try:
     start_new_thread(threaded_game_mechanics, ())
     while True:
-        if not p1conn:
-            p1conn, addr = sock.accept()
+        if not playerConnections[0]:
+            playerConnections[0], addr = sock.accept()
             print('Connected to: ' + addr[0] + ':' + str(addr[1]))
-            start_new_thread(threaded_client, (p1conn, 1,))
+            start_new_thread(threaded_client, (1,))
             ThreadCount += 1
             print('Thread Number: ' + str(ThreadCount))
-        elif not p2conn:
-            p2conn, addr = sock.accept()
+        elif not playerConnections[1]:
+            playerConnections[1], addr = sock.accept()
             print('Connected to: ' + addr[0] + ':' + str(addr[1]))
-            start_new_thread(threaded_client, (p2conn, 2,))
+            start_new_thread(threaded_client, (2,))
             ThreadCount += 1
             print('Thread Number: ' + str(ThreadCount))
 except Exception as e:
