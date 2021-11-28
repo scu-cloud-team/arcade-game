@@ -3,7 +3,34 @@ import socket
 import pickle
 from _thread import *
 import pygame
-import threading
+import mysql.connector
+
+mydb = mysql.connector.connect(
+    host="ec2-54-215-117-138.us-west-1.compute.amazonaws.com",
+    port="3306",
+    user="root",
+    password="password",
+    database="mypygame"
+)
+mycursor = mydb.cursor()
+
+
+def getHighScore():
+    mycursor.execute("SELECT * FROM scores ORDER BY player_score DESC LIMIT 1")
+    return mycursor.fetchone()[1]
+
+
+def getHighScoreString():
+    mycursor.execute("SELECT * FROM scores ORDER BY player_score DESC LIMIT 1")
+    temp = mycursor.fetchone()
+    value = temp[0] + "@" + str(temp[1])
+    return value
+
+def insertHighScore(name, score):
+    sql = "INSERT INTO scores VALUES (%s, %s)"
+    val = (name, score)
+    mycursor.execute(sql, val)
+    mydb.commit()
 
 windowWidth = 500
 windowHeight = 400
@@ -36,6 +63,9 @@ class CoordMessage:
         self.m1y = None
         self.m2x = None
         self.m2y = None
+        self.s1 = None
+        self.s2 = None
+        self.hs = None
 
 
 class Game:
@@ -62,6 +92,10 @@ class Game:
         self.meteorHeight = 20
         self.meteorImage = pygame.Surface((self.meteorWidth, self.meteorHeight))
         self.meteorMask = pygame.mask.from_surface(self.meteorImage)
+
+        self.coordMessage.s1 = 0
+        self.coordMessage.s2 = 0
+        self.coordMessage.hs = getHighScoreString()
 
     def updatePlayerOne(self, move_msg):
         self.coordMessage.p1x += move_msg.px
@@ -90,11 +124,15 @@ class Game:
     def updateMeteor(self):
         self.coordMessage.m1y += self.speed1
         if self.coordMessage.m1y > windowHeight:
+            self.coordMessage.s1 += 1
+            self.coordMessage.s2 += 1
             self.coordMessage.m1x = windowWidth * random.random()
             self.coordMessage.m1y = -25
             self.speed1 = 5 * random.random() + 5
         self.coordMessage.m2y += self.speed2
         if self.coordMessage.m2y > windowHeight:
+            self.coordMessage.s1 += 1
+            self.coordMessage.s2 += 1
             self.coordMessage.m2x = windowWidth * random.random()
             self.coordMessage.m2y = -25
             self.speed2 = 5 * random.random() + 5
@@ -120,11 +158,12 @@ class MoveMessage:
     def __init__(self, x, y):
         self.px = x
         self.py = y
+        self.name = ""
 
 
 game = Game()
 
-SERVER_IP = 'ec2-54-215-117-138.us-west-1.compute.amazonaws.com'
+#SERVER_IP = '127.0.0.1'
 SERVER_IP = '0.0.0.0'
 PORT = 5555
 BUFFER_SIZE = 1024
@@ -139,9 +178,18 @@ sock.listen(2)
 ThreadCount = 0
 print("Started Server")
 
+playerNames = ["None", "None"]
+
 
 def threaded_client(playernum):
     if playernum == 1:
+        try:
+            recv_data = playerConnections[0].recv(BUFFER_SIZE)
+            playerNames[0] = pickle.loads(recv_data)
+            print(playerNames)
+            game.coordMessage.s1 = 0
+        except Exception as cli_e:
+            pass
         while True:
             try:
                 recv_data = playerConnections[0].recv(BUFFER_SIZE)
@@ -156,7 +204,17 @@ def threaded_client(playernum):
         playerConnections[0].close()
         print(playerConnections[0], "exited")
         playerConnections[0] = None
+        if game.coordMessage.s1 > getHighScore():
+            insertHighScore(playerNames[0], game.coordMessage.s1)
+        playerNames[0] = "None"
     elif playernum == 2:
+        try:
+            recv_data = playerConnections[1].recv(BUFFER_SIZE)
+            playerNames[1] = pickle.loads(recv_data)
+            print(playerNames)
+            game.coordMessage.s1 = 0
+        except Exception as cli_e:
+            pass
         while True:
             try:
                 recv_data = playerConnections[1].recv(BUFFER_SIZE)
@@ -171,6 +229,9 @@ def threaded_client(playernum):
         playerConnections[1].close()
         print(playerConnections[1], "exited")
         playerConnections[1] = None
+        if game.coordMessage.s2 > getHighScore():
+            insertHighScore(playerNames[1], game.coordMessage.s2)
+        playerNames[1] = "None"
 
 
 def threaded_game_mechanics():
@@ -178,9 +239,15 @@ def threaded_game_mechanics():
         pygame.time.delay(50)
         game.updateMeteor()
         if game.checkCollisionOne():
-            print("Hit Player 1")
+            game.coordMessage.s1 -= 1
         if game.checkCollisionTwo():
-            print("Hit Player 2")
+            game.coordMessage.s2 -= 1
+
+
+def threaded_score():
+    while True:
+        pygame.time.wait(5000)
+        game.coordMessage.hs = getHighScoreString()
 
 
 playerConnections = [None, None]
@@ -188,6 +255,7 @@ gameStarted = [False]
 
 try:
     start_new_thread(threaded_game_mechanics, ())
+    start_new_thread(threaded_score, ())
     while True:
         if not playerConnections[0]:
             playerConnections[0], addr = sock.accept()
