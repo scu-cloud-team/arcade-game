@@ -6,7 +6,7 @@ import pygame
 import mysql.connector
 
 mydb = mysql.connector.connect(
-    host="ec2-54-215-117-138.us-west-1.compute.amazonaws.com",
+    host="127.0.0.1",
     port="3306",
     user="root",
     password="password",
