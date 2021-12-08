@@ -131,8 +131,7 @@ class Game:
         self.draw()
 
 
-#SERVER_IP = '127.0.0.1'
-SERVER_IP = 'ec2-54-215-117-138.us-west-1.compute.amazonaws.com'
+SERVER_IP = '127.0.0.1'
 PORT = 5555
 BUFFER_SIZE = 1024
 
